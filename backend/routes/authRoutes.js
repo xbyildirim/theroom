@@ -4,6 +4,7 @@ const Hotel = require('../models/Hotel');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
+const authMiddleware = require('../middleware/authMiddleware');
 
 // ⚡ Nodemailer Transport Oluşturma
 const transporter = nodemailer.createTransport({
@@ -226,6 +227,41 @@ router.post('/reset-password', async (req, res) => {
 
     } catch (error) {
         res.status(400).json({ message: 'Token geçersiz veya süresi dolmuş.' });
+    }
+});
+
+router.put('/update', authMiddleware, async (req, res) => {
+    // Token'ı body'den almaya gerek yok, middleware halletti.
+    const { name, customDomain } = req.body;
+
+    try {
+        // Kullanıcı ID'si artık 'req.user.id' içinde hazır geliyor
+        const hotel = await Hotel.findById(req.user.id);
+
+        if (!hotel) {
+            return res.status(404).json({ message: 'Otel bulunamadı.' });
+        }
+
+        // Bilgileri güncelle
+        if (name) hotel.name = name;
+        if (customDomain) hotel.customDomain = customDomain;
+
+        await hotel.save();
+
+        res.status(200).json({ 
+            message: 'Ayarlar başarıyla güncellendi.',
+            hotel: {
+                id: hotel._id,
+                name: hotel.name,
+                email: hotel.adminEmail,
+                tenantId: hotel.tenantId,
+                customDomain: hotel.customDomain,
+                subscription: hotel.subscription
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: 'Sunucu hatası.' });
     }
 });
 
