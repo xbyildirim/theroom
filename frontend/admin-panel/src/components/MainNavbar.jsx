@@ -52,6 +52,9 @@ const MainNavbar = ({ user }) => {
                     ) : (
                         // 2. Dashboard'da İSEK: Diğer menü linklerini göster
                         <>
+                            <button onClick={() => navigate('/hotel-data')} className="btn btn-link text-decoration-none text-muted">
+                                🏨 Oda ve Otel
+                            </button>
                             <button onClick={() => navigate('/static-pages')} className="btn btn-link text-decoration-none text-muted d-none d-md-block">
                                 📄 Statik Sayfalar
                             </button>

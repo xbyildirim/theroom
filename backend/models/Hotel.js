@@ -29,6 +29,13 @@ const hotelSchema = new mongoose.Schema({
         sparse: true // Yalnızca değer varsa benzersizlik kontrolü yap
     },
 
+    details: {
+        description: { type: String, default: '' }, // Otel genel açıklaması
+        address: { type: String, default: '' },
+        phone: { type: String, default: '' },
+        stars: { type: Number, default: 0 }, // Yıldız sayısı
+    },
+
     // 👤 Yönetici Kullanıcı Bilgileri
     
     // Yönetici Kullanıcının E-postası (Sisteme girişi için)
@@ -62,6 +69,7 @@ const hotelSchema = new mongoose.Schema({
     
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    facilities: [{ type: String }],
 
     // 💳 Abonelik ve Paket Bilgileri
     

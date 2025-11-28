@@ -11,6 +11,7 @@ import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import StaticPagesPage from './pages/StaticPagesPage';
 import ThemeListPage from './pages/ThemeListPage';
+import RoomHotelPage from './pages/RoomHotelPage';
 
 // 🛡️ Güvenlik Bileşenleri
 import PrivateRoute from './components/PrivateRoute';
@@ -85,6 +86,15 @@ function App() {
             element={
               <PrivateRoute>
                 <ThemeListPage />
+              </PrivateRoute>
+            } 
+          />
+
+          <Route 
+            path="/hotel-data" 
+            element={
+              <PrivateRoute>
+                <RoomHotelPage />
               </PrivateRoute>
             } 
           />
