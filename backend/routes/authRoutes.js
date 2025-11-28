@@ -121,28 +121,24 @@ router.post('/login', async (req, res) => {
     const { adminEmail, password } = req.body;
 
     try {
-        // 1. Kullanıcıyı bul
         const hotel = await Hotel.findOne({ adminEmail });
         if (!hotel) {
             return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
         }
 
-        // 2. Doğrulanmış mı kontrol et
         if (!hotel.isVerified) {
             return res.status(403).json({ message: 'Lütfen önce e-posta adresinizi doğrulayın.' });
         }
 
-        // 3. Şifre kontrolü
         const isMatch = await bcrypt.compare(password, hotel.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Hatalı şifre.' });
         }
 
-        // 4. Giriş Token'ı (JWT) Oluştur (Login Oturumu için)
         const token = jwt.sign(
             { id: hotel._id, tenantId: hotel.tenantId, email: hotel.adminEmail },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' } // 7 gün boyunca oturum açık kalır
+            { expiresIn: '7d' }
         );
 
         res.status(200).json({
@@ -152,7 +148,9 @@ router.post('/login', async (req, res) => {
                 id: hotel._id,
                 name: hotel.name,
                 email: hotel.adminEmail,
-                tenantId: hotel.tenantId
+                tenantId: hotel.tenantId,
+                customDomain: hotel.customDomain, // Bunu da ekleyelim, lazım olur
+                subscription: hotel.subscription // 👈 EKSİK OLAN BU SATIRDI!
             }
         });
 

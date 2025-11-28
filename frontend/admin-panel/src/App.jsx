@@ -7,24 +7,49 @@ import VerifyPage from './pages/VerifyPage';
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import DashboardPage from './pages/DashboardPage'; // Yeni Dashboard Sayfası
+import DashboardPage from './pages/DashboardPage';
 
-// 🛡️ Güvenlik Bileşeni
+// 🛡️ Güvenlik Bileşenleri
 import PrivateRoute from './components/PrivateRoute';
+import PublicOnlyRoute from './components/PublicOnlyRoute'; // 👈 YENİ EKLEDİK
 
 function App() {
   return (
     <BrowserRouter>
       <div className="App">
         <Routes>
-          {/* Herkese Açık Rotalar (Public Routes) */}
-          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* 👇 GİRİŞ YAPMIŞ KULLANICILARIN GİREMEMESİ GEREKEN SAYFALAR */}
+          
+          <Route 
+            path="/register" 
+            element={
+              <PublicOnlyRoute>
+                <RegisterPage />
+              </PublicOnlyRoute>
+            } 
+          />
+          
+          <Route 
+            path="/login" 
+            element={
+              <PublicOnlyRoute>
+                <LoginPage />
+              </PublicOnlyRoute>
+            } 
+          />
+
+          {/* Not: /verify, /forgot-password gibi sayfalar genellikle 
+             hem giriş yapmış hem yapmamış kullanıcıya açık olabilir 
+             veya mantığınıza göre onları da PublicOnlyRoute içine alabilirsiniz.
+             Şimdilik onları dışarıda bırakıyorum.
+          */}
           <Route path="/verify" element={<VerifyPage />} />
-          <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           
-          {/* 🔒 Korumalı Rotalar (Private Routes) */}
+          
+          {/* 🔒 KORUMALI ROTALAR (Sadece giriş yapmışlar girebilir) */}
           <Route 
             path="/dashboard" 
             element={

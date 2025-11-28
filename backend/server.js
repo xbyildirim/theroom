@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoutes');
+const startCronJobs = require('./cronJobs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,3 +32,5 @@ mongoose.connect(MONGO_URI)
     .catch((error) => {
         console.error('MongoDB connection error:', error.message);
     });
+
+startCronJobs();
