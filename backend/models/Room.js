@@ -1,61 +1,58 @@
 const mongoose = require('mongoose');
 
-const roomSchema = new mongoose.Schema({
-    hotelId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Hotel',
-        required: true
-    },
-    // --- TEMEL BİLGİLER ---
-    title: { type: String, required: true }, // Örn: King Suite
-    type: { 
-        type: String, 
-        enum: ['Standart', 'Deluxe', 'Suite', 'Family', 'King', 'Economy'],
-        default: 'Standart' 
-    },
-    price: { type: Number, required: true },
-    size: { type: Number }, // m2
-    capacity: { type: Number, default: 2 },
-    
-    // --- YATAK & ERİŞİM ---
-    bedType: { type: String }, // Çift Kişilik, 2 Tek Kişilik vb.
-    floor: { type: String }, // Zemin Kat, 5. Kat vb.
-    isAccessible: { type: Boolean, default: false }, // Engelli erişimi
+// Çoklu dil şeması (Tekrarlamamak için)
+const localizedString = {
+    tr: { type: String, default: '' },
+    en: { type: String, default: '' },
+    ru: { type: String, default: '' },
+    ar: { type: String, default: '' }
+    // Yeni dil eklenirse buraya eklenecek (Migration gerekir)
+    // VEYA daha esnek olması için: { type: Map, of: String } kullanılabilir.
+    // Biz şimdilik Map yapısını kullanalım ki backend kodunu değiştirmeden dil ekleyebilelim.
+};
 
-    // --- DONANIM & OLANAKLAR ---
+const roomSchema = new mongoose.Schema({
+    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Hotel', required: true },
+    
+    // 🌍 ÇOKLU DİL ALANLARI (Map kullanarak dinamik hale getirdik)
+    title: { type: Map, of: String, default: {} }, 
+    description: { type: Map, of: String, default: {} }, 
+    
+    // Diğer alanlar aynı kalıyor (Sayısal ve Boolean değerler çevrilmez)
+    type: { type: String, default: 'Standart' },
+    price: { type: Number, required: true },
+    size: { type: Number },
+    capacity: { type: Number, default: 2 },
+    bedType: { type: String },
+    floor: { type: String },
+    isAccessible: { type: Boolean, default: false },
+
+    // Features (Eğer özellik isimleri standart ise çeviri frontend'de yapılır, 
+    // ama özel metin girilecekse burası da Map olmalı. Biz standart varsayıyoruz.)
     features: {
         tv: { type: Boolean, default: false },
-        tvType: { type: String, default: '' }, // LED, Smart TV
-        ac: { type: Boolean, default: false }, // Klima
-        heatingType: { type: String, default: '' }, // Merkezi, Klima vb.
+        tvType: { type: String, default: '' },
+        ac: { type: Boolean, default: false },
         minibar: { type: Boolean, default: false },
-        safe: { type: Boolean, default: false }, // Kasa
-        phone: { type: Boolean, default: false },
+        safe: { type: Boolean, default: false },
         wifi: { type: Boolean, default: true },
-        wifiSpeed: { type: String, default: '' },
         roomService: { type: Boolean, default: false }
     },
 
-    // --- BANYO & TEMİZLİK ---
     bathroom: {
-        type: { type: String, default: 'Duş' }, // Duş, Küvet, Jakuzi
+        type: { type: String, default: 'Duş' },
         hairDryer: { type: Boolean, default: true },
-        toiletries: { type: Boolean, default: true }, // Şampuan, sabun vs.
-        cleaningFreq: { type: String, default: 'Günlük' } // Günlük, Haftalık
+        toiletries: { type: Boolean, default: true }
     },
 
-    // --- BALKON & MANZARA ---
     balcony: { type: Boolean, default: false },
-    view: { type: String, default: '' }, // Deniz, Dağ, Şehir
+    view: { type: Map, of: String, default: {} }, // Manzara metni çevrilebilir
 
-    // --- KURALLAR ---
     smokingAllowed: { type: Boolean, default: false },
     petFriendly: { type: Boolean, default: false },
-    cancellationPolicy: { type: String, default: 'Girişten 24 saat öncesine kadar ücretsiz.' },
-    
-    // --- GÖRSELLER (Şimdilik string array) ---
-    images: [{ type: String }],
+    cancellationPolicy: { type: Map, of: String, default: {} }, // İptal politikası metni çevrilebilir
 
+    images: [{ type: String }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Room', roomSchema);

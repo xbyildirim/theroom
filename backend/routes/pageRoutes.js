@@ -43,30 +43,32 @@ router.get('/:type', authMiddleware, async (req, res) => {
 router.put('/:type', authMiddleware, upload.single('image'), async (req, res) => {
     try {
         const { type } = req.params;
-        const { title, content } = req.body;
-        let imageUrl = undefined;
+        let { title, content } = req.body;
 
-        // --- GÖRSEL OPTİMİZASYONU ---
-        if (req.file) {
-            // Dosya adını oluştur (otelId-sayfaTuru-zaman.jpeg)
-            const filename = `page-${req.user.id}-${type}-${Date.now()}.jpeg`;
-            const outputPath = path.join(__dirname, '../uploads', filename);
-
-            // Sharp ile sıkıştır ve boyutlandır
-            await sharp(req.file.buffer)
-                .resize(1200, 800, { fit: 'inside', withoutEnlargement: true }) // Max 1200px genişlik
-                .jpeg({ quality: 80 }) // %80 Kalite (Boyutu düşürür)
-                .toFile(outputPath);
-
-            imageUrl = `/uploads/${filename}`;
+        // 🛠️ DÜZELTME: FormData'dan gelen JSON string'leri objeye çeviriyoruz
+        if (typeof title === 'string') {
+            try { title = JSON.parse(title); } catch (e) {}
+        }
+        if (typeof content === 'string') {
+            try { content = JSON.parse(content); } catch (e) {}
         }
 
-        // --- VERİTABANI GÜNCELLEME ---
-        // updateData objesini hazırla
-        const updateData = { title, content };
-        if (imageUrl) updateData.imageUrl = imageUrl; // Sadece yeni resim varsa güncelle
+        let imageUrl = undefined;
 
-        // upsert: true -> Kayıt varsa güncelle, yoksa yeni oluştur
+        // ... (Resim işleme kodları AYNI KALACAK) ...
+        if (req.file) {
+             const filename = `page-${req.user.id}-${type}-${Date.now()}.jpeg`;
+             const outputPath = path.join(__dirname, '../uploads', filename);
+             await sharp(req.file.buffer)
+                .resize(1200, 800, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 80 })
+                .toFile(outputPath);
+             imageUrl = `/uploads/${filename}`;
+        }
+
+        const updateData = { title, content };
+        if (imageUrl) updateData.imageUrl = imageUrl;
+
         const page = await Page.findOneAndUpdate(
             { hotelId: req.user.id, type },
             updateData,

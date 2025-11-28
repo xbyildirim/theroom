@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import '../css/dashboard.css';
 import MainNavbar from '../components/MainNavbar';
-// 👇 DEĞİŞİKLİK: 'react-quill' yerine 'react-quill-new' kullanıyoruz
 import ReactQuill from 'react-quill-new'; 
-import 'react-quill-new/dist/quill.snow.css'; // CSS dosyasını da yeni paketten çekiyoruz
+import 'react-quill-new/dist/quill.snow.css';
+import LanguageTabs from '../components/LanguageTabs'; // Dil Sekmeleri
+import { LANGUAGES, DEFAULT_LANGUAGE } from '../constants/languages'; // Sabitler
 
-// API Base URL (Resimleri göstermek için lazım)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', ''); 
 
 const PAGE_TYPES = [
@@ -19,7 +19,11 @@ const PAGE_TYPES = [
 
 const StaticPagesPage = () => {
     const [selectedType, setSelectedType] = useState('kvkk');
-    const [formData, setFormData] = useState({ title: '', content: '' });
+    
+    // 🌍 ÇOKLU DİL STATE YAPISI
+    const [formData, setFormData] = useState({ title: {}, content: {} });
+    const [currentLang, setCurrentLang] = useState(DEFAULT_LANGUAGE);
+    
     const [currentImage, setCurrentImage] = useState('');
     const [newImage, setNewImage] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -39,9 +43,19 @@ const StaticPagesPage = () => {
         setNewImage(null);
         try {
             const res = await api.get(`/pages/${type}`);
+            
+            // Gelen veri string ise (eski veri) objeye çevir, yoksa olduğu gibi al
+            const safeTitle = typeof res.data.title === 'string' 
+                ? { [DEFAULT_LANGUAGE]: res.data.title } 
+                : (res.data.title || {});
+
+            const safeContent = typeof res.data.content === 'string' 
+                ? { [DEFAULT_LANGUAGE]: res.data.content } 
+                : (res.data.content || {});
+
             setFormData({
-                title: res.data.title || PAGE_TYPES.find(p => p.id === type).label,
-                content: res.data.content || ''
+                title: safeTitle,
+                content: safeContent
             });
             setCurrentImage(res.data.imageUrl || '');
         } catch (error) {
@@ -62,9 +76,12 @@ const StaticPagesPage = () => {
         }
     };
 
-    // React Quill için içerik değişimi
-    const handleContentChange = (value) => {
-        setFormData({ ...formData, content: value });
+    // Çoklu Dil İçerik Güncelleme Helper'ı
+    const handleMultiLangChange = (field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: { ...prev[field], [currentLang]: value }
+        }));
     };
 
     const handleSubmit = async (e) => {
@@ -73,8 +90,10 @@ const StaticPagesPage = () => {
         setMessage('');
 
         const data = new FormData();
-        data.append('title', formData.title);
-        data.append('content', formData.content);
+        // 🛠️ Nesneleri JSON string olarak gönderiyoruz (Backend parse edecek)
+        data.append('title', JSON.stringify(formData.title));
+        data.append('content', JSON.stringify(formData.content));
+        
         if (newImage) {
             data.append('image', newImage);
         }
@@ -95,7 +114,6 @@ const StaticPagesPage = () => {
         }
     };
 
-    // Editör Araç Çubuğu Ayarları
     const modules = {
         toolbar: [
             [{ 'header': [1, 2, 3, false] }],
@@ -106,16 +124,8 @@ const StaticPagesPage = () => {
         ],
     };
 
-    const formats = [
-        'header',
-        'bold', 'italic', 'underline', 'strike', 'blockquote',
-        'list', 'bullet', 'indent',
-        'link'
-    ];
-
     return (
         <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-body)' }}>
-            
             <MainNavbar user={user} />
 
             <div className="container pb-5">
@@ -141,78 +151,62 @@ const StaticPagesPage = () => {
                         <div className="dashboard-card p-4 p-md-5">
                             {message && <div className={`alert ${message.startsWith('✅') ? 'alert-success' : 'alert-danger'}`}>{message}</div>}
 
+                            {/* 🌍 DİL SEÇİMİ */}
+                            <div className="d-flex justify-content-between align-items-center mb-4">
+                                <h5 className="fw-bold m-0">İçerik Düzenle</h5>
+                                <LanguageTabs activeLang={currentLang} setActiveLang={setCurrentLang} />
+                            </div>
+
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-4">
-                                    <label className="form-label text-muted small fw-bold">SAYFA BAŞLIĞI</label>
-                                    <input
-                                        type="text"
-                                        className="form-control form-control-lg bg-light border-0"
-                                        value={formData.title}
-                                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                                        required
-                                    />
+                                    <label className="form-label text-muted small fw-bold">
+                                        SAYFA BAŞLIĞI ({LANGUAGES.find(l=>l.code===currentLang).label})
+                                    </label>
+                                    <div className="input-group">
+                                        <span className="input-group-text">{LANGUAGES.find(l=>l.code===currentLang).flag}</span>
+                                        <input
+                                            type="text"
+                                            className="form-control form-control-lg bg-light border-0"
+                                            value={formData.title[currentLang] || ''}
+                                            onChange={(e) => handleMultiLangChange('title', e.target.value)}
+                                            placeholder={`${LANGUAGES.find(l=>l.code===currentLang).label} başlığı giriniz...`}
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="mb-4">
-                                    <label className="form-label text-muted small fw-bold">SAYFA İÇERİĞİ</label>
-                                    {/* Textarea yerine ReactQuill Editörü */}
+                                    <label className="form-label text-muted small fw-bold">
+                                        SAYFA İÇERİĞİ ({LANGUAGES.find(l=>l.code===currentLang).label})
+                                    </label>
                                     <div style={{ height: '350px', marginBottom: '50px' }}>
                                         <ReactQuill 
                                             theme="snow"
-                                            value={formData.content}
-                                            onChange={handleContentChange}
+                                            value={formData.content[currentLang] || ''}
+                                            onChange={(val) => handleMultiLangChange('content', val)}
                                             modules={modules}
-                                            formats={formats}
                                             style={{ height: '300px', backgroundColor: '#fff' }}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="mb-4">
-                                    <label className="form-label text-muted small fw-bold">SAYFA GÖRSELİ (Max 3MB)</label>
+                                    <label className="form-label text-muted small fw-bold">SAYFA GÖRSELİ (Tüm Diller İçin Ortak)</label>
                                     <div className="d-flex align-items-center gap-4">
-                                        <div 
-                                            style={{ 
-                                                width: '100px', 
-                                                height: '100px', 
-                                                borderRadius: '10px', 
-                                                overflow: 'hidden', 
-                                                background: '#eee',
-                                                border: '1px solid #ddd'
-                                            }}
-                                        >
+                                        <div style={{ width: '100px', height: '100px', borderRadius: '10px', overflow: 'hidden', background: '#eee', border: '1px solid #ddd' }}>
                                             {(newImage || currentImage) ? (
-                                                <img 
-                                                    src={newImage ? URL.createObjectURL(newImage) : `${API_BASE_URL}${currentImage}`} 
-                                                    alt="Preview" 
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                                />
+                                                <img src={newImage ? URL.createObjectURL(newImage) : `${API_BASE_URL}${currentImage}`} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             ) : (
                                                 <div className="d-flex justify-content-center align-items-center h-100 text-muted small">Yok</div>
                                             )}
                                         </div>
-
                                         <div className="flex-grow-1">
-                                            <input 
-                                                type="file" 
-                                                className="form-control" 
-                                                accept="image/*"
-                                                onChange={handleFileChange}
-                                            />
-                                            <small className="text-muted">
-                                                Görsel otomatik olarak optimize edilecek ve boyutu düşürülecektir.
-                                            </small>
+                                            <input type="file" className="form-control" accept="image/*" onChange={handleFileChange} />
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="d-flex justify-content-end mt-4">
-                                    <button 
-                                        type="submit" 
-                                        className="btn btn-primary px-5 py-2 rounded-pill fw-bold"
-                                        disabled={loading}
-                                        style={{ background: 'var(--primary-gradient)', border: 'none' }}
-                                    >
+                                    <button type="submit" className="btn btn-primary px-5 py-2 rounded-pill fw-bold" disabled={loading} style={{ background: 'var(--primary-gradient)', border: 'none' }}>
                                         {loading ? 'Kaydediliyor...' : 'Kaydet ve Yayınla'}
                                     </button>
                                 </div>
