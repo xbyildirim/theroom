@@ -1,0 +1,228 @@
+import React, { useState, useEffect } from 'react';
+import api from '../api';
+import '../css/dashboard.css';
+import MainNavbar from '../components/MainNavbar';
+// 👇 DEĞİŞİKLİK: 'react-quill' yerine 'react-quill-new' kullanıyoruz
+import ReactQuill from 'react-quill-new'; 
+import 'react-quill-new/dist/quill.snow.css'; // CSS dosyasını da yeni paketten çekiyoruz
+
+// API Base URL (Resimleri göstermek için lazım)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', ''); 
+
+const PAGE_TYPES = [
+    { id: 'kvkk', label: 'KVKK Aydınlatma Metni' },
+    { id: 'privacy', label: 'Gizlilik Politikası' },
+    { id: 'cookie', label: 'Çerez Politikası' },
+    { id: 'terms', label: 'Kullanım Koşulları' },
+    { id: 'contact', label: 'İletişim / Künye' },
+];
+
+const StaticPagesPage = () => {
+    const [selectedType, setSelectedType] = useState('kvkk');
+    const [formData, setFormData] = useState({ title: '', content: '' });
+    const [currentImage, setCurrentImage] = useState('');
+    const [newImage, setNewImage] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState('');
+    const [user, setUser] = useState(null);
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem('hotel');
+        if (storedUser) setUser(JSON.parse(storedUser));
+        
+        fetchPageData(selectedType);
+    }, [selectedType]);
+
+    const fetchPageData = async (type) => {
+        setLoading(true);
+        setMessage('');
+        setNewImage(null);
+        try {
+            const res = await api.get(`/pages/${type}`);
+            setFormData({
+                title: res.data.title || PAGE_TYPES.find(p => p.id === type).label,
+                content: res.data.content || ''
+            });
+            setCurrentImage(res.data.imageUrl || '');
+        } catch (error) {
+            console.error('Sayfa verisi çekilemedi');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 3 * 1024 * 1024) {
+                alert('Dosya boyutu 3MB\'dan büyük olamaz!');
+                return;
+            }
+            setNewImage(file);
+        }
+    };
+
+    // React Quill için içerik değişimi
+    const handleContentChange = (value) => {
+        setFormData({ ...formData, content: value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setMessage('');
+
+        const data = new FormData();
+        data.append('title', formData.title);
+        data.append('content', formData.content);
+        if (newImage) {
+            data.append('image', newImage);
+        }
+
+        try {
+            const res = await api.put(`/pages/${selectedType}`, data, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setMessage('✅ ' + res.data.message);
+            if (res.data.page.imageUrl) {
+                setCurrentImage(res.data.page.imageUrl);
+                setNewImage(null);
+            }
+        } catch (error) {
+            setMessage('❌ Hata: ' + (error.response?.data?.message || 'Güncellenemedi.'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Editör Araç Çubuğu Ayarları
+    const modules = {
+        toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+            [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
+            ['link'],
+            ['clean']
+        ],
+    };
+
+    const formats = [
+        'header',
+        'bold', 'italic', 'underline', 'strike', 'blockquote',
+        'list', 'bullet', 'indent',
+        'link'
+    ];
+
+    return (
+        <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-body)' }}>
+            
+            <MainNavbar user={user} />
+
+            <div className="container pb-5">
+                <h3 className="fw-bold mb-4" style={{ color: 'var(--text-main)' }}>Statik Sayfa Ayarları</h3>
+
+                <div className="row">
+                    <div className="col-lg-3 mb-4">
+                        <div className="list-group shadow-sm" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                            {PAGE_TYPES.map((page) => (
+                                <button
+                                    key={page.id}
+                                    onClick={() => setSelectedType(page.id)}
+                                    className={`list-group-item list-group-item-action py-3 px-4 fw-bold ${selectedType === page.id ? 'active' : ''}`}
+                                    style={selectedType === page.id ? { background: 'var(--primary-gradient)', border: 'none' } : { color: 'var(--text-main)' }}
+                                >
+                                    {page.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="col-lg-9">
+                        <div className="dashboard-card p-4 p-md-5">
+                            {message && <div className={`alert ${message.startsWith('✅') ? 'alert-success' : 'alert-danger'}`}>{message}</div>}
+
+                            <form onSubmit={handleSubmit}>
+                                <div className="mb-4">
+                                    <label className="form-label text-muted small fw-bold">SAYFA BAŞLIĞI</label>
+                                    <input
+                                        type="text"
+                                        className="form-control form-control-lg bg-light border-0"
+                                        value={formData.title}
+                                        onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="form-label text-muted small fw-bold">SAYFA İÇERİĞİ</label>
+                                    {/* Textarea yerine ReactQuill Editörü */}
+                                    <div style={{ height: '350px', marginBottom: '50px' }}>
+                                        <ReactQuill 
+                                            theme="snow"
+                                            value={formData.content}
+                                            onChange={handleContentChange}
+                                            modules={modules}
+                                            formats={formats}
+                                            style={{ height: '300px', backgroundColor: '#fff' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="form-label text-muted small fw-bold">SAYFA GÖRSELİ (Max 3MB)</label>
+                                    <div className="d-flex align-items-center gap-4">
+                                        <div 
+                                            style={{ 
+                                                width: '100px', 
+                                                height: '100px', 
+                                                borderRadius: '10px', 
+                                                overflow: 'hidden', 
+                                                background: '#eee',
+                                                border: '1px solid #ddd'
+                                            }}
+                                        >
+                                            {(newImage || currentImage) ? (
+                                                <img 
+                                                    src={newImage ? URL.createObjectURL(newImage) : `${API_BASE_URL}${currentImage}`} 
+                                                    alt="Preview" 
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                />
+                                            ) : (
+                                                <div className="d-flex justify-content-center align-items-center h-100 text-muted small">Yok</div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex-grow-1">
+                                            <input 
+                                                type="file" 
+                                                className="form-control" 
+                                                accept="image/*"
+                                                onChange={handleFileChange}
+                                            />
+                                            <small className="text-muted">
+                                                Görsel otomatik olarak optimize edilecek ve boyutu düşürülecektir.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="d-flex justify-content-end mt-4">
+                                    <button 
+                                        type="submit" 
+                                        className="btn btn-primary px-5 py-2 rounded-pill fw-bold"
+                                        disabled={loading}
+                                        style={{ background: 'var(--primary-gradient)', border: 'none' }}
+                                    >
+                                        {loading ? 'Kaydediliyor...' : 'Kaydet ve Yayınla'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default StaticPagesPage;

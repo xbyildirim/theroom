@@ -9,6 +9,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
+import StaticPagesPage from './pages/StaticPagesPage';
 
 // 🛡️ Güvenlik Bileşenleri
 import PrivateRoute from './components/PrivateRoute';
@@ -65,6 +66,15 @@ function App() {
             element={
               <PrivateRoute>
                 <SettingsPage />
+              </PrivateRoute>
+            } 
+          />
+
+          <Route 
+            path="/static-pages" 
+            element={
+              <PrivateRoute>
+                <StaticPagesPage />
               </PrivateRoute>
             } 
           />

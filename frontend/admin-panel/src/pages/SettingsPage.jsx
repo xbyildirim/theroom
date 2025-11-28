@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import '../css/dashboard.css';
-import AdSidebar from '../components/AdSidebar'; // Reklam alanını ekledik
 import api from '../api';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import '../css/dashboard.css';
+import AdSidebar from '../components/AdSidebar';
+import MainNavbar from '../components/MainNavbar';
 
 const SettingsPage = () => {
     const navigate = useNavigate();
@@ -37,12 +35,8 @@ const SettingsPage = () => {
         setLoading(true);
         setMessage('');
 
-        // const token = localStorage.getItem('token'); // ARTIK GEREK YOK, api.js otomatik alıyor
-
         try {
-            // api.put kullanıyoruz ve token göndermiyoruz
-            const res = await api.put('/auth/update', formData); 
-
+            const res = await api.put('/auth/update', formData);
             setMessage('✅ Bilgiler başarıyla güncellendi!');
             
             const updatedUser = { ...user, ...res.data.hotel };
@@ -59,20 +53,10 @@ const SettingsPage = () => {
     return (
         <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-body)' }}>
             
-            {/* Navbar (Dashboard ile aynı) */}
-            <nav className="navbar navbar-expand-lg dashboard-navbar mb-4">
-                <div className="container">
-                    <a className="navbar-brand brand-text" href="/dashboard">The Room</a>
-                    <div className="d-flex gap-3">
-                        <button onClick={() => navigate('/dashboard')} className="btn btn-sm btn-outline-secondary">← Panele Dön</button>
-                    </div>
-                </div>
-            </nav>
+            <MainNavbar user={user} />
 
             <div className="container">
                 <div className="row">
-                    
-                    {/* SOL TARA: AYARLAR FORMU (col-lg-8) */}
                     <div className="col-lg-8 mb-4">
                         <div className="dashboard-card p-5">
                             <h3 className="fw-bold mb-4" style={{ color: 'var(--text-main)' }}>Genel Ayarlar</h3>
@@ -125,11 +109,9 @@ const SettingsPage = () => {
                         </div>
                     </div>
 
-                    {/* SAĞ TARAF: REKLAM ALANI (col-lg-4) */}
                     <div className="col-lg-4">
                         <AdSidebar />
                     </div>
-
                 </div>
             </div>
         </div>

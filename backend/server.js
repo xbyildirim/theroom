@@ -9,16 +9,21 @@ const startCronJobs = require('./cronJobs');
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
+const pageRoutes = require('./routes/pageRoutes');
 
 // Middleware
 app.use(cors());
 app.use(express.json()); // JSON istek gövdelerini ayrıştırmak için
 app.use('/api/auth', authRoutes);
 
+app.use('/uploads', express.static('uploads'));
+
 // Basit bir test route'u
 app.get('/', (req, res) => {
     res.json({ message: 'Welcome to The Room Backend API!' });
 });
+
+app.use('/api/pages', pageRoutes);
 
 // Veritabanı Bağlantısı ve Sunucu Başlatma
 mongoose.connect(MONGO_URI)
