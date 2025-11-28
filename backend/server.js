@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const startCronJobs = require('./cronJobs');
 const themeRoutes = require('./routes/themeRoutes');
 const roomRoutes = require('./routes/roomRoutes');
+const websitePageRoutes = require('./routes/websitePageRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,9 +18,11 @@ const pageRoutes = require('./routes/pageRoutes');
 app.use(cors());
 app.use(express.json()); // JSON istek gövdelerini ayrıştırmak için
 app.use('/api/auth', authRoutes);
+app.use('/api/website-pages', websitePageRoutes);
 app.use('/api/themes', themeRoutes);
 app.use('/uploads', express.static('uploads'));
 app.use('/api/rooms', roomRoutes);
+
 
 // Basit bir test route'u
 app.get('/', (req, res) => {

@@ -12,6 +12,7 @@ import SettingsPage from './pages/SettingsPage';
 import StaticPagesPage from './pages/StaticPagesPage';
 import ThemeListPage from './pages/ThemeListPage';
 import RoomHotelPage from './pages/RoomHotelPage';
+import ThemeSettingsPage from './pages/ThemeSettingsPage';
 
 // 🛡️ Güvenlik Bileşenleri
 import PrivateRoute from './components/PrivateRoute';
@@ -95,6 +96,15 @@ function App() {
             element={
               <PrivateRoute>
                 <RoomHotelPage />
+              </PrivateRoute>
+            } 
+          />
+
+          <Route 
+            path="/theme-settings" 
+            element={
+              <PrivateRoute>
+                <ThemeSettingsPage />
               </PrivateRoute>
             } 
           />

@@ -36,6 +36,23 @@ const hotelSchema = new mongoose.Schema({
         stars: { type: Number, default: 0 }, // Yıldız sayısı
     },
 
+    siteSettings: {
+        logo: { type: String, default: '' },
+        favicon: { type: String, default: '' },
+        
+        siteTitle: { type: Map, of: String, default: {} }, 
+        description: { type: Map, of: String, default: {} }, 
+        keywords: { type: Map, of: String, default: {} },
+
+        pageMappings: {
+            // type: ObjectId olması, boş string gelince hata vermesine neden olur.
+            // Bu yüzden router'da null'a çevirdik.
+            homePage: { type: mongoose.Schema.Types.ObjectId, ref: 'WebsitePage' },
+            contactPage: { type: mongoose.Schema.Types.ObjectId, ref: 'WebsitePage' },
+            roomsPage: { type: mongoose.Schema.Types.ObjectId, ref: 'WebsitePage' },
+            aboutPage: { type: mongoose.Schema.Types.ObjectId, ref: 'WebsitePage' }
+        }
+    },
     // 👤 Yönetici Kullanıcı Bilgileri
     
     // Yönetici Kullanıcının E-postası (Sisteme girişi için)

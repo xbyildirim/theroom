@@ -30,16 +30,16 @@ router.post('/register', async (req, res) => {
         // Şifreyi hash'le
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Doğrulama token'ı oluştur (Kullanıcı ID'sini kullanıyoruz)
+        // Doğrulama token'ı oluştur
         const verificationToken = jwt.sign({ adminEmail }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
         const newHotel = new Hotel({
             name,
             adminEmail,
-            password: hashedPassword, // Hashlenmiş şifreyi kaydet
+            password: hashedPassword,
             customDomain,
-            isVerified: false, // Doğrulama durumunu FALSE olarak ayarla
-            verificationToken: verificationToken // Token'ı kaydet
+            isVerified: false,
+            verificationToken: verificationToken
         });
 
         await newHotel.save();
@@ -65,46 +65,44 @@ router.post('/register', async (req, res) => {
 
     } catch (error) {
         console.error("Kayıt Hatası:", error);
-        res.status(500).json({ message: 'Sunucu hatası. Kayıt veya mail gönderme işlemi başarısız.' });
+        res.status(500).json({ message: 'Sunucu hatası. Kayıt işlemi başarısız.' });
     }
 });
 
+// ✅ /api/auth/verify : E-posta Doğrulama
 router.get('/verify', async (req, res) => {
     const { token } = req.query;
 
     try {
-        // 1. JWT Token'ı çöz
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const { adminEmail } = decoded;
 
         console.log("✅ İstek Geldi. Email:", adminEmail);
 
-        // 2. Sadece E-posta ile kullanıcıyı bul (Token şartını burada koyma!)
         const hotel = await Hotel.findOne({ adminEmail });
 
         if (!hotel) {
             return res.status(400).json({ message: 'Böyle bir otel kaydı bulunamadı.' });
         }
 
-        // 3. 🛡️ KORUMA: Eğer otel zaten doğrulanmışsa, tekrar işlem yapma, direk başarılı dön.
-        // Bu adım, çift istek sorununu kökten çözer.
+        // Zaten doğrulanmışsa tekrar işlem yapma
         if (hotel.isVerified) {
-            console.log("ℹ️ Kullanıcı zaten doğrulanmış. Başarılı dönülüyor.");
+            console.log("ℹ️ Kullanıcı zaten doğrulanmış.");
             return res.status(200).json({ message: 'Hesabınız zaten doğrulanmış. Giriş yapabilirsiniz.' });
         }
 
-        // 4. Eğer doğrulanmamışsa, Token eşleşmesini kontrol et
+        // Token kontrolü
         if (hotel.verificationToken !== token) {
             console.log("❌ Token uyuşmazlığı.");
             return res.status(400).json({ message: 'Geçersiz doğrulama tokenı.' });
         }
 
-        // 5. İlk kez doğrulanıyorsa işlemi yap
+        // Doğrula
         hotel.isVerified = true;
         hotel.verificationToken = undefined; // Token'ı sil
         await hotel.save();
 
-        console.log("🎉 Doğrulama ilk kez başarıyla yapıldı.");
+        console.log("🎉 Doğrulama başarılı.");
         res.status(200).json({ message: 'E-posta adresiniz başarıyla doğrulandı. Giriş yapabilirsiniz.' });
 
     } catch (error) {
@@ -114,8 +112,6 @@ router.get('/verify', async (req, res) => {
         });
     }
 });
-
-// ... (Önceki register ve verify kodları buranın üstünde kalacak)
 
 // 🔑 /api/auth/login : Giriş Yapma
 router.post('/login', async (req, res) => {
@@ -150,8 +146,9 @@ router.post('/login', async (req, res) => {
                 name: hotel.name,
                 email: hotel.adminEmail,
                 tenantId: hotel.tenantId,
-                customDomain: hotel.customDomain, // Bunu da ekleyelim, lazım olur
-                subscription: hotel.subscription // 👈 EKSİK OLAN BU SATIRDI!
+                customDomain: hotel.customDomain,
+                subscription: hotel.subscription,
+                siteSettings: hotel.siteSettings // Site ayarlarını da döndür
             }
         });
 
@@ -170,15 +167,12 @@ router.post('/forgot-password', async (req, res) => {
             return res.status(404).json({ message: 'Bu e-posta ile kayıtlı otel bulunamadı.' });
         }
 
-        // Sıfırlama Token'ı oluştur (1 saat geçerli)
         const resetToken = jwt.sign({ id: hotel._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         
-        // Token'ı DB'ye kaydet
         hotel.resetPasswordToken = resetToken;
         hotel.resetPasswordExpires = Date.now() + 3600000; // 1 saat
         await hotel.save();
 
-        // Mail Gönder
         const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
 
         await transporter.sendMail({
@@ -204,7 +198,6 @@ router.post('/reset-password', async (req, res) => {
     const { token, newPassword } = req.body;
 
     try {
-        // Token geçerli mi ve süresi dolmamış mı kontrol et
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
         const hotel = await Hotel.findOne({ 
@@ -217,7 +210,6 @@ router.post('/reset-password', async (req, res) => {
             return res.status(400).json({ message: 'Geçersiz veya süresi dolmuş token.' });
         }
 
-        // Yeni şifreyi hash'le ve kaydet
         hotel.password = await bcrypt.hash(newPassword, 10);
         hotel.resetPasswordToken = undefined;
         hotel.resetPasswordExpires = undefined;
@@ -230,8 +222,9 @@ router.post('/reset-password', async (req, res) => {
     }
 });
 
+// ✏️ /api/auth/update : Genel Bilgileri Güncelle (Otel Adı, Domain, Özellikler)
 router.put('/update', authMiddleware, async (req, res) => {
-    const { name, customDomain, details, facilities } = req.body; // details ve facilities eklendi
+    const { name, customDomain, details, facilities } = req.body;
 
     try {
         const hotel = await Hotel.findById(req.user.id);
@@ -242,7 +235,11 @@ router.put('/update', authMiddleware, async (req, res) => {
         
         // Yeni alanları güncelle
         if (details) {
-            hotel.details = { ...hotel.details, ...details };
+            // Nested (iç içe) objeleri koruyarak güncelle
+            hotel.details = { 
+                ...hotel.details, // Mevcut verileri koru
+                ...details        // Yenileri üzerine yaz
+            };
         }
         if (facilities) {
             hotel.facilities = facilities;
@@ -259,8 +256,8 @@ router.put('/update', authMiddleware, async (req, res) => {
                 tenantId: hotel.tenantId,
                 customDomain: hotel.customDomain,
                 subscription: hotel.subscription,
-                details: hotel.details,     // Eklendi
-                facilities: hotel.facilities // Eklendi
+                details: hotel.details,
+                facilities: hotel.facilities
             }
         });
     } catch (error) {
@@ -268,6 +265,41 @@ router.put('/update', authMiddleware, async (req, res) => {
     }
 });
 
-// ... module.exports = router;
+// 🌐 /api/auth/update-site-settings : SEO ve Sayfa Eşleştirmelerini Güncelle
+router.put('/update-site-settings', authMiddleware, async (req, res) => {
+    const { siteSettings } = req.body;
+
+    try {
+        const hotel = await Hotel.findById(req.user.id);
+        if (!hotel) return res.status(404).json({ message: 'Otel bulunamadı.' });
+
+        if (siteSettings) {
+            // 🛡️ KRİTİK DÜZELTME: PageMappings içindeki boş stringleri NULL yap
+            if (siteSettings.pageMappings) {
+                for (const key in siteSettings.pageMappings) {
+                    if (siteSettings.pageMappings[key] === "") {
+                        siteSettings.pageMappings[key] = null;
+                    }
+                }
+            }
+
+            // Mevcut ayarları koruyarak güncelle (Deep Merge)
+            hotel.siteSettings = {
+                ...hotel.siteSettings, // Eskiler kalsın
+                ...siteSettings,       // Yenileri üzerine yaz
+                pageMappings: {        // Mappingleri ayrıca merge et
+                    ...(hotel.siteSettings.pageMappings || {}),
+                    ...(siteSettings.pageMappings || {})
+                }
+            };
+        }
+
+        await hotel.save();
+        res.status(200).json({ message: 'Site ayarları güncellendi.', hotel });
+    } catch (error) {
+        console.error("Site Settings Update Error:", error);
+        res.status(500).json({ message: 'Güncelleme hatası: ' + error.message });
+    }
+});
 
 module.exports = router;
