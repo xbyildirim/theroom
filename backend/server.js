@@ -5,6 +5,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoutes');
 const startCronJobs = require('./cronJobs');
+const themeRoutes = require('./routes/themeRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,7 +16,7 @@ const pageRoutes = require('./routes/pageRoutes');
 app.use(cors());
 app.use(express.json()); // JSON istek gövdelerini ayrıştırmak için
 app.use('/api/auth', authRoutes);
-
+app.use('/api/themes', themeRoutes);
 app.use('/uploads', express.static('uploads'));
 
 // Basit bir test route'u

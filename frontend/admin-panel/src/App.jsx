@@ -10,6 +10,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import StaticPagesPage from './pages/StaticPagesPage';
+import ThemeListPage from './pages/ThemeListPage';
 
 // 🛡️ Güvenlik Bileşenleri
 import PrivateRoute from './components/PrivateRoute';
@@ -75,6 +76,15 @@ function App() {
             element={
               <PrivateRoute>
                 <StaticPagesPage />
+              </PrivateRoute>
+            } 
+          />
+
+          <Route 
+            path="/themes" 
+            element={
+              <PrivateRoute>
+                <ThemeListPage />
               </PrivateRoute>
             } 
           />

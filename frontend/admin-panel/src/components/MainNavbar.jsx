@@ -55,6 +55,9 @@ const MainNavbar = ({ user }) => {
                             <button onClick={() => navigate('/static-pages')} className="btn btn-link text-decoration-none text-muted d-none d-md-block">
                                 📄 Statik Sayfalar
                             </button>
+                            <button onClick={() => navigate('/themes')} className="btn btn-link text-decoration-none text-muted">
+                                🎨 Temalar
+                            </button>
                             <button onClick={() => navigate('/settings')} className="btn btn-link text-decoration-none text-muted">
                                 ⚙️ Ayarlar
                             </button>
