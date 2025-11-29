@@ -13,6 +13,7 @@ import StaticPagesPage from './pages/StaticPagesPage';
 import ThemeListPage from './pages/ThemeListPage';
 import RoomHotelPage from './pages/RoomHotelPage';
 import ThemeSettingsPage from './pages/ThemeSettingsPage';
+import ThemeEditorPage from './pages/ThemeEditorPage';
 
 // 🛡️ Güvenlik Bileşenleri
 import PrivateRoute from './components/PrivateRoute';
@@ -105,6 +106,15 @@ function App() {
             element={
               <PrivateRoute>
                 <ThemeSettingsPage />
+              </PrivateRoute>
+            } 
+          />
+
+          <Route 
+            path="/theme-editor/:pageId?" // Sayfa ID'si opsiyonel (veya zorunlu yapabilirsiniz)
+            element={
+              <PrivateRoute>
+                <ThemeEditorPage />
               </PrivateRoute>
             } 
           />

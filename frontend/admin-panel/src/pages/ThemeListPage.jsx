@@ -1,101 +1,137 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // Yönlendirme için eklendi
+import { useNavigate } from 'react-router-dom'; // 1. useNavigate eklendi
 import api from '../api';
 import '../css/dashboard.css';
 import MainNavbar from '../components/MainNavbar';
+import LanguageTabs from '../components/LanguageTabs';
+import { LANGUAGES, DEFAULT_LANGUAGE } from '../constants/languages';
 
-const ThemeListPage = () => {
-    const navigate = useNavigate(); // Hook tanımlandı
-    const [themes, setThemes] = useState([]);
-    const [loading, setLoading] = useState(true);
+const ThemeSettingsPage = () => {
+    const navigate = useNavigate(); // 2. Hook tanımlandı
     const [user, setUser] = useState(null);
+    const [currentLang, setCurrentLang] = useState(DEFAULT_LANGUAGE);
     
-    // --- YENİ TEMA MODAL STATE ---
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newThemeName, setNewThemeName] = useState('');
+    // --- VERİ STATE'LERİ ---
+    const [siteSettings, setSiteSettings] = useState({
+        siteTitle: {}, description: {}, keywords: {},
+        logo: '', favicon: ''
+    });
+    const [pages, setPages] = useState([]);
+    const [pageMappings, setPageMappings] = useState({
+        homePage: '', contactPage: '', roomsPage: '', aboutPage: ''
+    });
 
-    // --- SİLME ONAY MODAL STATE ---
+    // --- MODAL KONTROL STATE'LERİ ---
+    const [showSeoModal, setShowSeoModal] = useState(false);
+    const [showMappingModal, setShowMappingModal] = useState(false);
+    const [showAddPageModal, setShowAddPageModal] = useState(false);
+    
+    // 🗑️ SİLME ONAY MODALI
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [themeToDelete, setThemeToDelete] = useState(null); 
+    const [pageToDelete, setPageToDelete] = useState(null);
 
+    // --- FORM STATE'LERİ ---
+    const [newPageName, setNewPageName] = useState('');
+    const [newPageSlug, setNewPageSlug] = useState('');
+    
     // --- BİLDİRİM STATE ---
-    const [statusModal, setStatusModal] = useState({ show: false, type: 'success', message: '' });
+    const [status, setStatus] = useState({ show: false, msg: '', type: 'success' });
 
     useEffect(() => {
         const storedUser = localStorage.getItem('hotel');
-        if (storedUser) setUser(JSON.parse(storedUser));
-        fetchThemes();
+        if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            setUser(parsed);
+            if (parsed.siteSettings) {
+                setSiteSettings(prev => ({ ...prev, ...parsed.siteSettings }));
+                if (parsed.siteSettings.pageMappings) {
+                    setPageMappings(parsed.siteSettings.pageMappings);
+                }
+            }
+        }
+        fetchPages();
     }, []);
 
-    const fetchThemes = async () => {
+    const fetchPages = async () => {
         try {
-            const res = await api.get('/themes');
-            setThemes(res.data);
+            const res = await api.get('/website-pages');
+            setPages(res.data);
+        } catch (error) { console.error('Sayfalar yüklenemedi'); }
+    };
+
+    const showMsg = (msg, type = 'success') => {
+        setStatus({ show: true, msg, type });
+        setTimeout(() => setStatus({ show: false, msg: '', type: 'success' }), 2500);
+    };
+
+    const handleSeoChange = (field, value) => {
+        setSiteSettings(prev => ({
+            ...prev,
+            [field]: { ...prev[field], [currentLang]: value }
+        }));
+    };
+
+    const handleSaveGeneral = async () => {
+        try {
+            const updateData = { 
+                siteSettings: {
+                    ...siteSettings,
+                    pageMappings: pageMappings
+                }
+            };
+            const res = await api.put('/auth/update-site-settings', updateData);
+            
+            const updatedUser = { ...user, siteSettings: res.data.hotel.siteSettings };
+            localStorage.setItem('hotel', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+
+            showMsg('Ayarlar başarıyla kaydedildi.');
+            setShowSeoModal(false);
+            setShowMappingModal(false);
         } catch (error) {
-            console.error('Temalar yüklenemedi');
-        } finally {
-            setLoading(false);
+            showMsg('Kaydedilemedi.', 'error');
         }
     };
 
-    const showStatus = (type, message) => {
-        setStatusModal({ show: true, type, message });
-        setTimeout(() => setStatusModal({ ...statusModal, show: false }), 2000);
-    };
-
-    const handleCreateTheme = async (e) => {
+    const handleAddPage = async (e) => {
         e.preventDefault();
-        if (!newThemeName.trim()) return;
-
+        if (!newPageName || !newPageSlug) return;
         try {
-            const res = await api.post('/themes', { name: newThemeName });
-            setThemes([res.data, ...themes]); 
-            setNewThemeName('');
-            setShowCreateModal(false);
-            showStatus('success', 'Tema başarıyla oluşturuldu.');
+            const res = await api.post('/website-pages', { name: newPageName, slug: newPageSlug });
+            setPages([...pages, res.data]);
+            setNewPageName('');
+            setNewPageSlug('');
+            setShowAddPageModal(false);
+            showMsg('Yeni sayfa oluşturuldu.');
         } catch (error) {
-            showStatus('error', 'Tema oluşturulamadı.');
+            showMsg(error.response?.data?.message || 'Hata.', 'error');
         }
     };
 
-    const toggleActive = async (theme) => {
-        if (theme.isActive) return;
-        try {
-            await api.put(`/themes/${theme._id}`, { isActive: true });
-            fetchThemes(); // Diğerlerini pasif yapmak için listeyi yenile
-            showStatus('success', 'Tema yayına alındı.');
-        } catch (error) {
-            showStatus('error', 'Durum değiştirilemedi.');
-        }
-    };
-
-    // 1. Silme Butonu Tetikleyicisi
-    const openDeleteModal = (id) => {
-        setThemeToDelete(id);
+    const requestDelete = (id) => {
+        setPageToDelete(id);
         setShowDeleteModal(true);
     };
 
-    // 2. Silme Onayı
     const confirmDelete = async () => {
-        if (!themeToDelete) return;
+        if (!pageToDelete) return;
 
         try {
-            await api.delete(`/themes/${themeToDelete}`);
-            setThemes(themes.filter(t => t._id !== themeToDelete));
-            showStatus('success', 'Tema silindi.');
-        } catch (error) {
-            showStatus('error', error.response?.data?.message || 'Silinemedi.');
+            await api.delete(`/website-pages/${pageToDelete}`);
+            setPages(pages.filter(p => p._id !== pageToDelete));
+            showMsg('Sayfa başarıyla silindi.');
+        } catch (error) { 
+            showMsg('Silme işlemi başarısız oldu.', 'error'); 
         } finally {
             setShowDeleteModal(false);
-            setThemeToDelete(null);
+            setPageToDelete(null);
         }
     };
 
-    // 3. Düzenle Butonu Aksiyonu
-    const handleEditTheme = (themeId) => {
-        // İleride spesifik bir tema ID ile gitmek isterseniz: navigate(`/theme-settings/${themeId}`)
-        // Şimdilik genel ayarlara yönlendiriyoruz:
-        navigate('/theme-settings');
+    // 3. İÇERİK DÜZENLEME YÖNLENDİRMESİ
+    const handleEditContent = (pageId) => {
+        // Tema Editörüne Yönlendir
+        navigate(`/theme-editor/${pageId}`);
     };
 
     return (
@@ -103,106 +139,213 @@ const ThemeListPage = () => {
             <MainNavbar user={user} />
 
             <div className="container pb-5">
-                <div className="d-flex justify-content-between align-items-center mb-4">
-                    <h3 className="fw-bold m-0" style={{ color: 'var(--text-main)' }}>Tema Yönetimi</h3>
-                    <button 
-                        className="btn btn-primary rounded-pill px-4 fw-bold"
-                        onClick={() => setShowCreateModal(true)}
-                        style={{ background: 'var(--primary-gradient)', border: 'none' }}
-                    >
-                        + Yeni Tema
-                    </button>
+                <h3 className="fw-bold mb-4" style={{ color: 'var(--text-main)' }}>Tema ve Site Ayarları</h3>
+
+                {/* --- ÜST BUTONLAR ALANI --- */}
+                <div className="row g-4 mb-5">
+                    {/* SEO BUTONU */}
+                    <div className="col-md-6">
+                        <div className="dashboard-card p-4 h-100 d-flex flex-column align-items-center justify-content-center text-center cursor-pointer hover-scale"
+                             onClick={() => setShowSeoModal(true)}
+                             style={{ cursor: 'pointer', transition: 'transform 0.2s' }}>
+                            <div className="bg-primary text-white rounded-circle p-3 mb-3" style={{ width: '60px', height: '60px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px' }}>
+                                🌐
+                            </div>
+                            <h5 className="fw-bold">Genel Site Bilgileri (SEO)</h5>
+                            <p className="text-muted small">Site başlığı, logo, anahtar kelimeler ve açıklamaları düzenleyin.</p>
+                            <button className="btn btn-outline-primary rounded-pill px-4 btn-sm mt-2">Düzenle</button>
+                        </div>
+                    </div>
+
+                    {/* EŞLEŞTİRME BUTONU */}
+                    <div className="col-md-6">
+                        <div className="dashboard-card p-4 h-100 d-flex flex-column align-items-center justify-content-center text-center cursor-pointer hover-scale"
+                             onClick={() => setShowMappingModal(true)}
+                             style={{ cursor: 'pointer', transition: 'transform 0.2s' }}>
+                            <div className="bg-success text-white rounded-circle p-3 mb-3" style={{ width: '60px', height: '60px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px' }}>
+                                🔗
+                            </div>
+                            <h5 className="fw-bold">Sayfa Eşleştirmeleri</h5>
+                            <p className="text-muted small">Anasayfa, İletişim gibi sistem sayfalarını belirleyin.</p>
+                            <button className="btn btn-outline-success rounded-pill px-4 btn-sm mt-2">Eşleştir</button>
+                        </div>
+                    </div>
                 </div>
 
-                {loading ? (
-                    <div className="text-center p-5"><div className="spinner-border text-primary"></div></div>
-                ) : (
-                    <div className="row g-4">
-                        {themes.map((theme) => (
-                            <div className="col-md-6 col-lg-4" key={theme._id}>
-                                <div className={`dashboard-card p-4 h-100 ${theme.isActive ? 'border-left-success' : 'border-left-primary'}`} style={{ position: 'relative' }}>
-                                    
-                                    <div className="d-flex justify-content-between align-items-start mb-3">
-                                        <div>
-                                            <h5 className="fw-bold mb-1">{theme.name}</h5>
-                                            <span className={`badge ${theme.isActive ? 'bg-success' : 'bg-secondary'}`}>
-                                                {theme.isActive ? 'Yayında' : 'Pasif'}
-                                            </span>
-                                        </div>
-                                        <div style={{ fontSize: '2rem' }}>🎨</div>
-                                    </div>
-
-                                    <div className="d-flex gap-2 mt-4 pt-3 border-top">
-                                        {!theme.isActive && (
-                                            <button 
-                                                onClick={() => toggleActive(theme)}
-                                                className="btn btn-sm btn-outline-success flex-grow-1"
-                                            >
-                                                Yayına Al
-                                            </button>
-                                        )}
-
-                                        {/* DÜZENLE BUTONU */}
-                                        <button 
-                                            onClick={() => handleEditTheme(theme._id)}
-                                            className="btn btn-sm btn-outline-primary flex-grow-1"
-                                        >
-                                            Düzenle
-                                        </button>
-
-                                        {!theme.isActive && (
-                                            <button 
-                                                onClick={() => openDeleteModal(theme._id)}
-                                                className="btn btn-sm btn-outline-danger"
-                                                title="Temayı Sil"
-                                            >
-                                                🗑️
-                                            </button>
-                                        )}
-                                    </div>
-
-                                </div>
-                            </div>
-                        ))}
-                        
-                        {themes.length === 0 && (
-                            <div className="col-12 text-center text-muted py-5">
-                                <p>Henüz hiç temanız yok. Yeni bir tane oluşturun!</p>
-                            </div>
-                        )}
+                {/* --- SAYFA LİSTESİ ALANI --- */}
+                <div className="dashboard-card p-4">
+                    <div className="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+                        <div>
+                            <h5 className="fw-bold m-0">Sayfa Listesi</h5>
+                            <small className="text-muted">Sitenizde bulunan tüm sayfalar</small>
+                        </div>
+                        <button className="btn btn-primary rounded-pill px-4 fw-bold" onClick={() => setShowAddPageModal(true)}>
+                            + Yeni Sayfa Ekle
+                        </button>
                     </div>
-                )}
+
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle">
+                            <thead className="table-light">
+                                <tr>
+                                    <th>Sayfa Adı</th>
+                                    <th>URL (Slug)</th>
+                                    <th className="text-end">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pages.length > 0 ? pages.map(page => (
+                                    <tr key={page._id}>
+                                        <td className="fw-bold">{page.name}</td>
+                                        <td><span className="badge bg-light text-dark border">{page.slug}</span></td>
+                                        <td className="text-end">
+                                            {/* 🚀 DÜZELTİLDİ: BUTON ARTIK ÇALIŞIYOR */}
+                                            <button 
+                                                className="btn btn-sm btn-outline-primary me-2 rounded-pill"
+                                                onClick={() => handleEditContent(page._id)}
+                                            >
+                                                İçerik Düzenle ✏️
+                                            </button>
+                                            
+                                            <button 
+                                                className="btn btn-sm btn-outline-danger rounded-pill" 
+                                                onClick={() => requestDelete(page._id)}
+                                            >
+                                                Sil 🗑️
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="3" className="text-center py-4 text-muted">Henüz sayfa oluşturulmadı.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
-            {/* --- MODALLAR --- */}
+            {/* --- MODALLAR (AYNI KALIYOR) --- */}
+            {/* 1. SEO MODALI */}
+            {showSeoModal && (
+                <div className="expiry-overlay" style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                    <div className="card shadow-lg p-4" style={{ width: '600px', borderRadius: '15px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div className="d-flex justify-content-between mb-3">
+                            <h5 className="fw-bold">Genel Site Bilgileri (SEO)</h5>
+                            <button className="btn btn-sm btn-light" onClick={() => setShowSeoModal(false)}>X</button>
+                        </div>
+                        
+                        <div className="alert alert-info py-2 d-flex align-items-center justify-content-between mb-3">
+                            <small className="fw-bold">Dil Seçimi:</small>
+                            <LanguageTabs activeLang={currentLang} setActiveLang={setCurrentLang} />
+                        </div>
 
-            {/* 1. YENİ TEMA MODALI */}
-            {showCreateModal && (
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold text-muted">SİTE BAŞLIĞI ({currentLang})</label>
+                            <input type="text" className="form-control" 
+                                value={siteSettings.siteTitle[currentLang] || ''} 
+                                onChange={e => handleSeoChange('siteTitle', e.target.value)} 
+                            />
+                        </div>
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold text-muted">AÇIKLAMA ({currentLang})</label>
+                            <textarea className="form-control" rows="3"
+                                value={siteSettings.description[currentLang] || ''} 
+                                onChange={e => handleSeoChange('description', e.target.value)} 
+                            ></textarea>
+                        </div>
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold text-muted">ANAHTAR KELİMELER</label>
+                            <input type="text" className="form-control" 
+                                value={siteSettings.keywords[currentLang] || ''} 
+                                onChange={e => handleSeoChange('keywords', e.target.value)} 
+                            />
+                        </div>
+                        
+                        <div className="row mt-3">
+                            <div className="col-6">
+                                <label className="form-label small fw-bold text-muted">LOGO</label>
+                                <input type="file" className="form-control form-control-sm" />
+                            </div>
+                            <div className="col-6">
+                                <label className="form-label small fw-bold text-muted">FAVICON</label>
+                                <input type="file" className="form-control form-control-sm" />
+                            </div>
+                        </div>
+
+                        <div className="text-end mt-4 pt-3 border-top">
+                            <button className="btn btn-success px-4 rounded-pill" onClick={handleSaveGeneral}>Kaydet</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 2. EŞLEŞTİRME MODALI */}
+            {showMappingModal && (
+                <div className="expiry-overlay" style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                    <div className="card shadow-lg p-4" style={{ width: '500px', borderRadius: '15px' }}>
+                        <div className="d-flex justify-content-between mb-3">
+                            <h5 className="fw-bold">Sayfa Eşleştirmeleri</h5>
+                            <button className="btn btn-sm btn-light" onClick={() => setShowMappingModal(false)}>X</button>
+                        </div>
+                        <p className="text-muted small mb-4">Sistem linklerinin hangi sayfaları açacağını belirleyin.</p>
+
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold">ANASAYFA</label>
+                            <select className="form-select" value={pageMappings.homePage || ''} onChange={e => setPageMappings({...pageMappings, homePage: e.target.value})}>
+                                <option value="">Seçiniz</option>
+                                {pages.map(p => <option key={p._id} value={p._id}>{p.name} ({p.slug})</option>)}
+                            </select>
+                        </div>
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold">İLETİŞİM SAYFASI</label>
+                            <select className="form-select" value={pageMappings.contactPage || ''} onChange={e => setPageMappings({...pageMappings, contactPage: e.target.value})}>
+                                <option value="">Seçiniz</option>
+                                {pages.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="mb-3">
+                            <label className="form-label small fw-bold">ODALAR SAYFASI</label>
+                            <select className="form-select" value={pageMappings.roomsPage || ''} onChange={e => setPageMappings({...pageMappings, roomsPage: e.target.value})}>
+                                <option value="">Seçiniz</option>
+                                {pages.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="text-end mt-4 pt-3 border-top">
+                            <button className="btn btn-success px-4 rounded-pill" onClick={handleSaveGeneral}>Kaydet</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 3. YENİ SAYFA MODALI */}
+            {showAddPageModal && (
                 <div className="expiry-overlay" style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
                     <div className="card shadow-lg p-4" style={{ width: '400px', borderRadius: '15px' }}>
-                        <h4 className="fw-bold mb-3">Yeni Tema Oluştur</h4>
-                        <form onSubmit={handleCreateTheme}>
+                        <h5 className="fw-bold mb-3">Yeni Sayfa Oluştur</h5>
+                        <form onSubmit={handleAddPage}>
                             <div className="mb-3">
-                                <label className="form-label small text-muted fw-bold">TEMA ADI</label>
-                                <input 
-                                    type="text" 
-                                    className="form-control" 
-                                    placeholder="Örn: Yaz Konsepti" 
-                                    value={newThemeName}
-                                    onChange={(e) => setNewThemeName(e.target.value)}
-                                    autoFocus
-                                />
+                                <label className="form-label small fw-bold text-muted">SAYFA ADI</label>
+                                <input type="text" className="form-control" placeholder="Örn: Hakkımızda" required 
+                                    value={newPageName} onChange={e => setNewPageName(e.target.value)} />
                             </div>
-                            <div className="d-flex justify-content-end gap-2">
-                                <button type="button" className="btn btn-light" onClick={() => setShowCreateModal(false)}>İptal</button>
-                                <button type="submit" className="btn btn-primary" disabled={!newThemeName.trim()}>Oluştur</button>
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold text-muted">URL (SLUG)</label>
+                                <input type="text" className="form-control" placeholder="Örn: /hakkimizda" required 
+                                    value={newPageSlug} onChange={e => setNewPageSlug(e.target.value)} />
+                            </div>
+                            <div className="d-flex justify-content-end gap-2 mt-4">
+                                <button type="button" className="btn btn-light" onClick={() => setShowAddPageModal(false)}>İptal</button>
+                                <button type="submit" className="btn btn-primary px-4">Oluştur</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* 2. SİLME ONAY MODALI */}
+            {/* 4. SİLME ONAY MODALI */}
             {showDeleteModal && (
                 <div className="expiry-overlay" style={{ background: 'rgba(0,0,0,0.6)', zIndex: 1060 }}>
                     <div className="card shadow-lg p-4 text-center" style={{ width: '350px', borderRadius: '20px' }}>
@@ -214,7 +357,7 @@ const ThemeListPage = () => {
                         </div>
                         <h4 className="fw-bold mb-2">Emin misiniz?</h4>
                         <p className="text-muted small mb-4">
-                            Bu temayı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                            Bu sayfayı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
                         </p>
                         
                         <div className="d-flex gap-2 justify-content-center">
@@ -225,14 +368,11 @@ const ThemeListPage = () => {
                 </div>
             )}
 
-            {/* 3. BİLDİRİM MODALI (BAŞARILI/HATA) */}
-            {statusModal.show && (
-                <div className="expiry-overlay" style={{ background: 'rgba(0,0,0,0.0)', zIndex: 2000, pointerEvents: 'none' }}>
-                    <div className="card shadow-lg p-3 text-center border-0 animate__animated animate__fadeInUp" style={{ minWidth: '300px', borderRadius: '50px', background: statusModal.type === 'success' ? '#d1e7dd' : '#f8d7da', color: statusModal.type === 'success' ? '#0f5132' : '#842029' }}>
-                        <span className="fw-bold">
-                            {statusModal.type === 'success' ? '✔ ' : '✖ '}
-                            {statusModal.message}
-                        </span>
+            {/* BİLDİRİM TOAST */}
+            {status.show && (
+                <div className="expiry-overlay" style={{ background: 'transparent', pointerEvents: 'none', zIndex: 2000 }}>
+                    <div className={`card shadow-lg p-3 text-white border-0 ${status.type === 'error' ? 'bg-danger' : 'bg-success'}`} style={{ borderRadius: '50px' }}>
+                        <span className="fw-bold px-3">{status.msg}</span>
                     </div>
                 </div>
             )}
@@ -241,4 +381,4 @@ const ThemeListPage = () => {
     );
 };
 
-export default ThemeListPage;
+export default ThemeSettingsPage;
