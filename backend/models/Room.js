@@ -53,6 +53,7 @@ const roomSchema = new mongoose.Schema({
     cancellationPolicy: { type: Map, of: String, default: {} }, // İptal politikası metni çevrilebilir
 
     images: [{ type: String }],
+    videos: [{ type: String }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Room', roomSchema);

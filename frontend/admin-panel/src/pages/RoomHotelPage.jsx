@@ -5,7 +5,10 @@ import MainNavbar from '../components/MainNavbar';
 import LanguageTabs from '../components/LanguageTabs';
 import { LANGUAGES, DEFAULT_LANGUAGE } from '../constants/languages';
 
-// Tesis Olanakları (Otel Geneli)
+// API URL (Resim önizleme için)
+// .env dosyasından VITE_API_BASE_URL alıp '/api' kısmını siliyoruz ki resim yolunu doğru bulsun
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
+
 const COMMON_FACILITIES = [
     'Ücretsiz Wifi', 'Otopark', 'Yüzme Havuzu', 'SPA & Wellness', 
     'Spor Salonu (Gym)', 'Restoran', 'Bar', 'Oda Servisi', 
@@ -17,66 +20,43 @@ const RoomHotelPage = () => {
     const [activeTab, setActiveTab] = useState('rooms'); 
     const [user, setUser] = useState(null);
     const [rooms, setRooms] = useState([]);
-    
-    // 🌍 DİL STATE
     const [currentLang, setCurrentLang] = useState(DEFAULT_LANGUAGE);
-
-    // Otel Detayları State
+    
+    // Otel Detayları
     const [hotelDetails, setHotelDetails] = useState({ description: {}, address: '', phone: '', stars: 0 });
     const [selectedFacilities, setSelectedFacilities] = useState([]);
 
-    // --- MODAL STATE'LERİ (Alert Yerine) ---
-    const [statusModal, setStatusModal] = useState({ show: false, type: 'success', message: '' }); // Başarılı/Hata
-    const [deleteModal, setDeleteModal] = useState({ show: false, roomId: null }); // Silme Onayı
+    // Modallar
+    const [statusModal, setStatusModal] = useState({ show: false, type: 'success', message: '' });
+    const [deleteModal, setDeleteModal] = useState({ show: false, roomId: null });
 
-    // --- GELİŞMİŞ ODA FORMU BAŞLANGIÇ DEĞERLERİ ---
+    // Oda Form State
     const initialRoomState = {
-        // Çevrilebilir Alanlar (Multilang)
-        title: {}, 
-        description: {}, 
-        view: {}, 
-        cancellationPolicy: {},
-        minibarContents: {}, // Minibar detayları
-
-        // 1. Genel
+        title: {}, description: {}, view: {}, cancellationPolicy: {}, minibarContents: {},
         type: 'Standart', price: 0, extraFee: 0, size: 0, capacity: 2,
         bedType: 'Çift Kişilik', bedCount: 1, floor: 'Zemin', isAccessible: false,
-
-        // 2. Donanım
         features: {
-            tv: false, tvType: 'LED',
-            ac: false, heatingType: 'Klima',
-            minibar: false,
-            safe: false,
-            phone: false,
-            wifi: true, wifiSpeed: '100 Mbps',
+            tv: false, tvType: 'LED', ac: false, heatingType: 'Klima',
+            minibar: false, safe: false, phone: false, wifi: true, wifiSpeed: '100 Mbps',
             roomService: false, roomServiceHours: '24 Saat'
         },
-
-        // 3. Banyo & Temizlik
-        bathroom: {
-            type: 'Duş', 
-            isPrivate: true, // Oda içinde mi?
-            hairDryer: true, 
-            toiletries: true, 
-            cleaningFreq: 'Günlük'
-        },
-
-        // 4. Balkon
+        bathroom: { type: 'Duş', isPrivate: true, hairDryer: true, toiletries: true, cleaningFreq: 'Günlük' },
         balcony: false,
-
-        // 5. Kurallar & Zamanlama
-        checkInTime: '14:00', checkOutTime: '11:00',
-        smokingAllowed: false, petFriendly: false,
-
-        // 6. Güvenlik
-        safety: { fireAlarm: true, smokeDetector: true }
+        checkInTime: '14:00', checkOutTime: '11:00', smokingAllowed: false, petFriendly: false,
+        safety: { fireAlarm: true, smokeDetector: true },
+        // Dosyalar için placeholder (Bunlar URL stringleri)
+        images: [], 
+        videos: [] 
     };
 
     const [showRoomForm, setShowRoomForm] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [currentRoomId, setCurrentRoomId] = useState(null);
     const [newRoom, setNewRoom] = useState(initialRoomState);
+    
+    // Yüklenecek Yeni Dosyalar State'i (File Objesi)
+    const [selectedImages, setSelectedImages] = useState([]);
+    const [selectedVideos, setSelectedVideos] = useState([]);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('hotel');
@@ -93,21 +73,14 @@ const RoomHotelPage = () => {
         try {
             const res = await api.get('/rooms');
             setRooms(res.data);
-        } catch (error) {
-            console.error("Odalar çekilemedi");
-        }
+        } catch (error) { console.error("Odalar çekilemedi"); }
     };
 
-    // --- YARDIMCI FONKSİYONLAR ---
-    
-    // Bildirim Göster
     const showStatus = (type, message) => {
         setStatusModal({ show: true, type, message });
-        // 2 saniye sonra otomatik kapat
         setTimeout(() => setStatusModal({ ...statusModal, show: false }), 2500);
     };
 
-    // Çoklu Dil Input Değişimi
     const handleMultiLangChange = (field, value, isRoom = true) => {
         if (isRoom) {
             setNewRoom(prev => ({ ...prev, [field]: { ...prev[field], [currentLang]: value } }));
@@ -116,13 +89,9 @@ const RoomHotelPage = () => {
         }
     };
 
-    // Oda Nested State Değişimi
     const handleRoomChange = (section, field, value) => {
         if (section) {
-            setNewRoom(prev => ({
-                ...prev,
-                [section]: { ...prev[section], [field]: value }
-            }));
+            setNewRoom(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
         } else {
             setNewRoom(prev => ({ ...prev, [field]: value }));
         }
@@ -133,66 +102,100 @@ const RoomHotelPage = () => {
         return dataObj[lang] || dataObj[DEFAULT_LANGUAGE] || '';
     };
 
-    // --- CRUD İŞLEMLERİ ---
+    // Dosya Seçme İşlemi
+    const handleFileChange = (e, type) => {
+        const files = Array.from(e.target.files);
+        if (type === 'images') setSelectedImages([...selectedImages, ...files]);
+        if (type === 'videos') setSelectedVideos([...selectedVideos, ...files]);
+    };
+
+    // Dosya Kaldırma (Seçilenlerden)
+    const removeSelectedFile = (index, type) => {
+        if (type === 'images') setSelectedImages(selectedImages.filter((_, i) => i !== index));
+        if (type === 'videos') setSelectedVideos(selectedVideos.filter((_, i) => i !== index));
+    };
 
     const handleRoomSubmit = async (e) => {
         e.preventDefault();
+        
+        // FormData Oluşturma (Dosya yükleme için zorunlu)
+        const formData = new FormData();
+
+        // 1. Nested Objeleri JSON String Olarak Ekle (Backend'de parse edilecek)
+        formData.append('title', JSON.stringify(newRoom.title));
+        formData.append('description', JSON.stringify(newRoom.description));
+        formData.append('view', JSON.stringify(newRoom.view));
+        formData.append('cancellationPolicy', JSON.stringify(newRoom.cancellationPolicy));
+        formData.append('minibarContents', JSON.stringify(newRoom.minibarContents));
+        formData.append('features', JSON.stringify(newRoom.features));
+        formData.append('bathroom', JSON.stringify(newRoom.bathroom));
+        formData.append('safety', JSON.stringify(newRoom.safety));
+
+        // 2. Basit Değerleri Ekle
+        ['type', 'price', 'extraFee', 'size', 'capacity', 'bedType', 'bedCount', 
+         'floor', 'isAccessible', 'balcony', 'checkInTime', 'checkOutTime', 
+         'smokingAllowed', 'petFriendly'].forEach(key => {
+             formData.append(key, newRoom[key]);
+        });
+
+        // 3. Dosyaları Ekle
+        selectedImages.forEach(file => formData.append('images', file));
+        selectedVideos.forEach(file => formData.append('videos', file));
+
         try {
             let res;
+            // Config: Multipart Header
+            const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+
             if (isEditing) {
-                res = await api.put(`/rooms/${currentRoomId}`, newRoom);
+                res = await api.put(`/rooms/${currentRoomId}`, formData, config);
                 setRooms(rooms.map(r => r._id === currentRoomId ? res.data : r));
-                showStatus('success', 'Oda başarıyla güncellendi.');
+                showStatus('success', 'Oda güncellendi.');
             } else {
-                res = await api.post('/rooms', newRoom);
+                res = await api.post('/rooms', formData, config);
                 setRooms([res.data, ...rooms]);
-                showStatus('success', 'Yeni oda başarıyla eklendi.');
+                showStatus('success', 'Yeni oda eklendi.');
             }
             setShowRoomForm(false);
             setNewRoom(initialRoomState);
+            setSelectedImages([]);
+            setSelectedVideos([]);
         } catch (error) {
-            showStatus('error', 'İşlem başarısız oldu.');
+            console.error(error);
+            showStatus('error', 'İşlem başarısız: ' + (error.response?.data?.message || 'Hata'));
         }
     };
 
     const handleEditClick = (room) => {
-        // Backend'den gelen veri eksikse init değerleri ile birleştir
         const safeRoom = {
-            ...initialRoomState,
-            ...room,
+            ...initialRoomState, ...room,
             features: { ...initialRoomState.features, ...(room.features || {}) },
             bathroom: { ...initialRoomState.bathroom, ...(room.bathroom || {}) },
             safety: { ...initialRoomState.safety, ...(room.safety || {}) },
             title: room.title || {}, description: room.description || {},
             view: room.view || {}, cancellationPolicy: room.cancellationPolicy || {},
-            minibarContents: room.minibarContents || {}
+            minibarContents: room.minibarContents || {},
+            images: room.images || [], videos: room.videos || []
         };
         setNewRoom(safeRoom);
         setIsEditing(true);
         setCurrentRoomId(room._id);
         setShowRoomForm(true);
+        setSelectedImages([]); // Yeni yükleme listesini sıfırla
+        setSelectedVideos([]);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Silme İşlemi (Modal Tetikler)
-    const requestDelete = (id) => {
-        setDeleteModal({ show: true, roomId: id });
-    };
-
-    // Silme Onayı (Modal'dan Gelen)
+    // Silme Onayı
     const confirmDelete = async () => {
         try {
             await api.delete(`/rooms/${deleteModal.roomId}`);
             setRooms(rooms.filter(r => r._id !== deleteModal.roomId));
             showStatus('success', 'Oda silindi.');
-        } catch (error) { 
-            showStatus('error', 'Silinemedi.'); 
-        } finally {
-            setDeleteModal({ show: false, roomId: null });
-        }
+        } catch (error) { showStatus('error', 'Silinemedi.'); } 
+        finally { setDeleteModal({ show: false, roomId: null }); }
     };
 
-    // Otel Güncelleme
     const handleHotelUpdate = async (e) => {
         e.preventDefault();
         try {
@@ -201,9 +204,7 @@ const RoomHotelPage = () => {
             localStorage.setItem('hotel', JSON.stringify(updatedUser));
             setUser(updatedUser);
             showStatus('success', 'Otel bilgileri güncellendi!');
-        } catch (error) {
-            showStatus('error', 'Güncelleme hatası.');
-        }
+        } catch (error) { showStatus('error', 'Güncelleme hatası.'); }
     };
 
     return (
@@ -221,7 +222,6 @@ const RoomHotelPage = () => {
                     </li>
                 </ul>
 
-                {/* --- TAB 1: ODALAR --- */}
                 {activeTab === 'rooms' && (
                     <div className="row">
                         <div className="col-12 mb-4 text-end">
@@ -241,14 +241,67 @@ const RoomHotelPage = () => {
                                         <button className="btn btn-sm btn-light" onClick={() => setShowRoomForm(false)}>X İptal</button>
                                     </div>
 
-                                    {/* DİL SEÇİCİ */}
                                     <div className="alert alert-info py-2 d-flex align-items-center justify-content-between mb-4">
                                         <small className="fw-bold text-primary"><i className="bi bi-translate me-2"></i>İçerik Dili: {LANGUAGES.find(l=>l.code===currentLang).label}</small>
                                         <LanguageTabs activeLang={currentLang} setActiveLang={setCurrentLang} />
                                     </div>
                                     
                                     <form onSubmit={handleRoomSubmit}>
-                                        {/* 1. GENEL ÖZELLİKLER */}
+                                        {/* BÖLÜM 1: MEDYA YÜKLEME (YENİ) */}
+                                        <h6 className="text-primary fw-bold border-bottom pb-2 mb-3">📷 Görsel & Video Galeri</h6>
+                                        <div className="row mb-4">
+                                            {/* RESİMLER */}
+                                            <div className="col-md-6">
+                                                <label className="form-label small fw-bold">ODA FOTOĞRAFLARI (Max 10)</label>
+                                                <input type="file" className="form-control mb-2" accept="image/*" multiple onChange={(e) => handleFileChange(e, 'images')} />
+                                                
+                                                {/* Önizleme Alanı */}
+                                                <div className="d-flex flex-wrap gap-2">
+                                                    {/* Mevcut Resimler */}
+                                                    {newRoom.images && newRoom.images.map((img, i) => (
+                                                        <div key={`existing-${i}`} className="position-relative">
+                                                            <img src={`${API_BASE_URL}${img}`} alt="room" className="rounded border" style={{ width: '80px', height: '80px', objectFit: 'cover' }} />
+                                                        </div>
+                                                    ))}
+                                                    {/* Yeni Yüklenecekler */}
+                                                    {selectedImages.map((file, i) => (
+                                                        <div key={i} className="position-relative">
+                                                            <img src={URL.createObjectURL(file)} alt="preview" className="rounded border" style={{ width: '80px', height: '80px', objectFit: 'cover', opacity: 0.8 }} />
+                                                            <button type="button" className="btn btn-danger btn-sm p-0 rounded-circle position-absolute top-0 end-0" 
+                                                                style={{ width: '20px', height: '20px', lineHeight: '18px', fontSize: '12px' }}
+                                                                onClick={() => removeSelectedFile(i, 'images')}>x</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* VİDEOLAR */}
+                                            <div className="col-md-6">
+                                                <label className="form-label small fw-bold">ODA VİDEOLARI (Max 3)</label>
+                                                <input type="file" className="form-control mb-2" accept="video/*" multiple onChange={(e) => handleFileChange(e, 'videos')} />
+                                                <div className="d-flex flex-wrap gap-2">
+                                                    {/* Mevcut Videolar */}
+                                                    {newRoom.videos && newRoom.videos.map((vid, i) => (
+                                                        <div key={`existing-vid-${i}`} className="border rounded p-1 bg-light">
+                                                            <small className="d-block text-muted" style={{fontSize: '10px'}}>Mevcut Video {i+1}</small>
+                                                            <video src={`${API_BASE_URL}${vid}`} style={{ width: '80px', height: '60px' }} />
+                                                        </div>
+                                                    ))}
+                                                    {/* Yeni Videolar */}
+                                                    {selectedVideos.map((file, i) => (
+                                                        <div key={i} className="position-relative border rounded p-1 bg-light">
+                                                            <small className="d-block text-success" style={{fontSize: '10px'}}>Yeni Video</small>
+                                                            <video src={URL.createObjectURL(file)} style={{ width: '80px', height: '60px' }} />
+                                                            <button type="button" className="btn btn-danger btn-sm p-0 rounded-circle position-absolute top-0 end-0" 
+                                                                style={{ width: '20px', height: '20px', lineHeight: '18px', fontSize: '12px' }}
+                                                                onClick={() => removeSelectedFile(i, 'videos')}>x</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* BÖLÜM 2: GENEL ÖZELLİKLER */}
                                         <h6 className="text-primary fw-bold border-bottom pb-2 mb-3">1. Genel Özellikler & Yatak</h6>
                                         <div className="row g-3 mb-4">
                                             <div className="col-md-6">
@@ -291,7 +344,7 @@ const RoomHotelPage = () => {
                                             </div>
                                         </div>
 
-                                        {/* 2. DONANIM & EŞYALAR */}
+                                        {/* BÖLÜM 3: DONANIM & EŞYALAR */}
                                         <h6 className="text-primary fw-bold border-bottom pb-2 mb-3">2. Oda Donanımı & Eşyalar</h6>
                                         <div className="row g-3 mb-4">
                                             <div className="col-md-4 border-end">
@@ -346,7 +399,7 @@ const RoomHotelPage = () => {
                                             </div>
                                         </div>
 
-                                        {/* 3. BANYO & BALKON */}
+                                        {/* BÖLÜM 4: BANYO & BALKON */}
                                         <h6 className="text-primary fw-bold border-bottom pb-2 mb-3">3. Banyo & Balkon</h6>
                                         <div className="row g-3 mb-4">
                                             <div className="col-md-3">
@@ -390,7 +443,7 @@ const RoomHotelPage = () => {
                                             </div>
                                         </div>
 
-                                        {/* 4. FİYAT, REZERVASYON & KURALLAR */}
+                                        {/* BÖLÜM 5: FİYAT, REZERVASYON & KURALLAR */}
                                         <h6 className="text-primary fw-bold border-bottom pb-2 mb-3">4. Fiyat & Kurallar</h6>
                                         <div className="row g-3 mb-4">
                                             <div className="col-md-3">
@@ -429,7 +482,7 @@ const RoomHotelPage = () => {
                                             </div>
                                         </div>
 
-                                        {/* 5. GÜVENLİK */}
+                                        {/* BÖLÜM 6: GÜVENLİK */}
                                         <h6 className="text-primary fw-bold border-bottom pb-2 mb-3">5. Güvenlik</h6>
                                         <div className="row g-3">
                                             <div className="col-md-4">
@@ -461,7 +514,11 @@ const RoomHotelPage = () => {
                             <div className="col-md-6 col-lg-4 mb-4" key={room._id}>
                                 <div className="dashboard-card p-0 h-100 overflow-hidden">
                                     <div className="bg-light p-4 text-center position-relative">
-                                        <h1 className="m-0">🛏️</h1>
+                                        {/* İlk resmi kapak resmi olarak göster */}
+                                        {room.images && room.images.length > 0 ? (
+                                            <img src={`${API_BASE_URL}${room.images[0]}`} alt="Cover" className="w-100 h-100 position-absolute top-0 start-0" style={{objectFit:'cover', opacity:0.3}} />
+                                        ) : null}
+                                        <h1 className="m-0 position-relative">🛏️</h1>
                                         <span className="badge bg-primary position-absolute top-0 end-0 m-3">{room.type}</span>
                                     </div>
                                     <div className="p-4">
@@ -474,7 +531,7 @@ const RoomHotelPage = () => {
                                         
                                         <div className="d-flex gap-2">
                                             <button onClick={() => handleEditClick(room)} className="btn btn-sm btn-outline-primary flex-grow-1">Düzenle</button>
-                                            <button onClick={() => requestDelete(room._id)} className="btn btn-sm btn-outline-danger">Sil</button>
+                                            <button onClick={() => setDeleteModal({ show: true, roomId: room._id })} className="btn btn-sm btn-outline-danger">Sil</button>
                                         </div>
                                     </div>
                                 </div>
@@ -532,7 +589,7 @@ const RoomHotelPage = () => {
 
             {/* --- MODALLAR --- */}
             
-            {/* 1. STATUS MODAL (BAŞARILI/HATA) */}
+            {/* 1. STATUS MODAL */}
             {statusModal.show && (
                 <div className="expiry-overlay" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 2000 }}>
                     <div className="card shadow-lg p-4 text-center border-0" style={{ width: '350px', borderRadius: '20px' }}>
